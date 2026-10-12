@@ -1,6 +1,6 @@
 # DurdurNet (Android starter)
 
-Root gerektirmeyen Android uygulama iskeleti. GitHub Actions `debug APK` üretir.
+Root gerektirmeyen Android uygulama iskeleti. GitHub Actions `APKS` üretir.
 
 ## Şu an neler var?
 - Android uygulama listesi ve seçilebilir kutular (yalnızca arayüz/yerel bellek).
@@ -13,12 +13,12 @@ Bu ilk iskelet VPN tünelini oluşturur ancak IP paketlerini iletmez veya seçil
 
 Android'in normal uygulama izinleriyle diğer uygulamaları sistem genelinde tamamen devre dışı bırakmak mümkün değildir. Bu proje bunun yerine sistem uygulama ayarlarına yönlendirir.
 
-## APK üretme
+## APKS dosyası üretme
 1. Bu klasörün içeriğini yeni bir GitHub deposuna yükle.
 2. GitHub deposunda **Actions** sekmesini aç ve workflow çalışmasına izin ver.
 3. **Actions → Build DurdurNet APK → Run workflow** seç.
-4. Başarılı çalışmanın altındaki **Artifacts** bölümünden `DurdurNet-debug-apk` dosyasını indir.
-5. ZIP'i açıp `app-debug.apk` dosyasını Android telefona kur.
+4. Başarılı çalışmanın altındaki **Artifacts** bölümünden `DurdurNet-APKS` dosyasını indir.
+5. ZIP'i açıp `DurdurNet.apks` dosyasını Android telefona kur.
 
 ## Teknik
 - Kotlin, Android SDK 35, minSdk 26.
