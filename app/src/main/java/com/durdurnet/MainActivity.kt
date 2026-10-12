@@ -15,46 +15,61 @@ class MainActivity : Activity() {
     private val requestVpn = 100
     private lateinit var list: LinearLayout
     private lateinit var status: TextView
-    private val blocked = mutableSetOf<String>()
+    private val blocked = linkedSetOf<String>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(12, 18, 32)
         window.navigationBarColor = Color.rgb(12, 18, 32)
+        val prefs = getSharedPreferences("durdurnet", MODE_PRIVATE)
+        blocked.addAll(prefs.getStringSet("blocked_apps", emptySet()) ?: emptySet())
+
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(22, 28, 22, 12)
             setBackgroundColor(Color.rgb(12, 18, 32))
         }
         outer.addView(TextView(this).apply {
-            text = "DurdurNet"
-            textSize = 30f; setTextColor(Color.WHITE); gravity = Gravity.CENTER_VERTICAL
+            text = "DurdurNet"; textSize = 30f; setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER_VERTICAL
         })
         outer.addView(TextView(this).apply {
-            text = "Root gerektirmeyen internet kontrolü"
-            textSize = 14f; setTextColor(Color.LTGRAY); setPadding(0, 4, 0, 18)
+            text = "Seçtiğin uygulamaların internetini VPN ile engelle"
+            textSize = 14f; setTextColor(Color.LTGRAY); setPadding(0, 4, 0, 14)
         })
         status = TextView(this).apply {
             text = "VPN kapalı"; textSize = 16f; setTextColor(Color.rgb(255, 190, 90))
-            setPadding(0, 8, 0, 14)
+            setPadding(0, 8, 0, 12)
         }
         outer.addView(status)
+
         val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         controls.addView(Button(this).apply {
-            text = "VPN'i başlat"
+            text = "Engellemeyi başlat / güncelle"
             setOnClickListener {
-                val intent = VpnService.prepare(this@MainActivity)
-                if (intent != null) startActivityForResult(intent, requestVpn)
-                else startVpn()
+                if (blocked.isEmpty()) {
+                    status.text = "Önce internetini engellemek istediğin uygulamaları seç."
+                } else {
+                    val intent = VpnService.prepare(this@MainActivity)
+                    if (intent != null) startActivityForResult(intent, requestVpn) else startVpn()
+                }
+            }
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.5f))
+        controls.addView(Button(this).apply {
+            text = "Durdur"
+            setOnClickListener {
+                stopService(Intent(this@MainActivity, FirewallVpnService::class.java))
+                status.text = "VPN kapalı"
             }
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        controls.addView(Button(this).apply {
-            text = "Uygulama ayarları"
-            setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)) }
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         outer.addView(controls)
+        outer.addView(Button(this).apply {
+            text = "Android uygulama ayarları"
+            setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)) }
+        })
         outer.addView(TextView(this).apply {
-            text = "Uygulamalar · seçtiklerini işaretle"
-            textSize = 18f; setTextColor(Color.WHITE); setPadding(0, 18, 0, 8)
+            text = "Uygulamalar · engellenecekleri işaretle"
+            textSize = 18f; setTextColor(Color.WHITE); setPadding(0, 14, 0, 8)
         })
         val scroll = ScrollView(this)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -63,6 +78,7 @@ class MainActivity : Activity() {
         setContentView(outer)
         showApps()
     }
+
     private fun showApps() {
         list.removeAllViews()
         val pm = packageManager
@@ -72,7 +88,7 @@ class MainActivity : Activity() {
         for (app in apps) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                setPadding(8, 8, 8, 8)
+                setPadding(8, 7, 8, 7)
             }
             val name = TextView(this).apply {
                 text = pm.getApplicationLabel(app).toString() + "\n" + app.packageName
@@ -84,8 +100,10 @@ class MainActivity : Activity() {
                 isChecked = blocked.contains(app.packageName)
                 setOnCheckedChangeListener { _, checked ->
                     if (checked) blocked.add(app.packageName) else blocked.remove(app.packageName)
-                    status.text = if (blocked.isEmpty()) "VPN açık · engellenecek uygulama seçilmedi"
-                                  else "Seçili uygulama: ${blocked.size} (ilk sürüm)"
+                    getSharedPreferences("durdurnet", MODE_PRIVATE).edit()
+                        .putStringSet("blocked_apps", HashSet(blocked)).apply()
+                    status.text = if (blocked.isEmpty()) "Seçili uygulama yok"
+                                  else "${blocked.size} uygulama seçildi. Değişiklik için başlat/güncelle."
                 }
             }
             row.addView(check)
@@ -93,12 +111,17 @@ class MainActivity : Activity() {
             list.addView(ViewDivider(this))
         }
     }
+
     private fun startVpn() {
-        startService(Intent(this, FirewallVpnService::class.java))
-        status.text = "VPN başlatıldı · trafik filtreleme henüz etkin değil"
+        val intent = Intent(this, FirewallVpnService::class.java)
+            .putStringArrayListExtra(FirewallVpnService.EXTRA_BLOCKED_PACKAGES, ArrayList(blocked))
+        startService(intent)
+        status.text = "${blocked.size} uygulama için internet engelleme etkinleştiriliyor."
     }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == requestVpn && resultCode == RESULT_OK) startVpn()
+        else if (requestCode == requestVpn) status.text = "VPN izni verilmedi."
     }
 }
