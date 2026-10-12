@@ -1,4 +1,4 @@
-name: Build DurdurNet APK
+name: Build DurdurNet APKS
 on:
   workflow_dispatch:
   push:
@@ -22,10 +22,25 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Build debug Android App Bundle
+        run: gradle --no-daemon bundleDebug
+      - name: Install bundletool
+        run: |
+          curl -L https://github.com/google/bundletool/releases/download/1.18.2/bundletool-all-1.18.2.jar -o /tmp/bundletool.jar
+      - name: Create universal APKS archive
+        run: |
+          test -f "$HOME/.android/debug.keystore"
+          java -jar /tmp/bundletool.jar build-apks \
+            --bundle=app/build/outputs/bundle/debug/app-debug.aab \
+            --output=DurdurNet.apks \
+            --mode=universal \
+            --ks="$HOME/.android/debug.keystore" \
+            --ks-pass=pass:android \
+            --ks-key-alias=androiddebugkey \
+            --key-pass=pass:android \
+            --overwrite
       - uses: actions/upload-artifact@v4
         with:
-          name: DurdurNet-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: DurdurNet-APKS
+          path: DurdurNet.apks
           if-no-files-found: error
