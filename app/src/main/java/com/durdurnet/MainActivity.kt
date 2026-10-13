@@ -114,8 +114,18 @@ class MainActivity : Activity() {
                 text = "Kısıtla"
                 textSize = 11f
                 setPadding(5, 0, 5, 0)
-                contentDescription = "$appLabel izin, internet ve arka plan kısıtlama ayarlarını aç"
+                contentDescription = "$appLabel izin ve arka plan ayarlarını göster"
                 setOnClickListener { showAppManagement(app.packageName, appLabel) }
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+            row.addView(Button(this).apply {
+                text = "Devre dışı"
+                textSize = 10f
+                setPadding(3, 0, 3, 0)
+                contentDescription = "$appLabel için Android devre dışı bırakma ayarlarını aç"
+                setOnClickListener { openDisableSettings(app.packageName) }
             }, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -206,6 +216,24 @@ class MainActivity : Activity() {
             startActivity(intent)
         } catch (_: Exception) {
             status.text = "Bu uygulamanın Android ayarları açılamadı."
+        }
+    }
+
+    /**
+     * Android does not expose a public API for ordinary apps to disable other apps.
+     * This dedicated button opens the system app-info page, where the OS may show
+     * Disable for eligible apps. The button cannot force-disable an app itself.
+     */
+    private fun openDisableSettings(targetPackage: String) {
+        try {
+            startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:$targetPackage")
+                )
+            )
+        } catch (_: Exception) {
+            status.text = "Devre dışı bırakma ayarları açılamadı."
         }
     }
 
