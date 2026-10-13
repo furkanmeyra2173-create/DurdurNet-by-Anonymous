@@ -1,20 +1,26 @@
 package com.durdurnet
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import java.io.FileInputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
 /**
- * Routes only the selected packages into a local VPN and discards their packets.
- * Other apps are not added to this VPN and should keep their normal network path.
+ * Keeps the local VPN in the foreground while blocking selected apps.
+ * Packets routed into this VPN are intentionally discarded.
  */
 class FirewallVpnService : VpnService() {
     companion object {
         const val EXTRA_BLOCKED_PACKAGES = "blocked_packages"
         const val ACTION_STOP = "com.durdurnet.STOP"
+        private const val CHANNEL_ID = "durdurnet_vpn"
+        private const val NOTIFICATION_ID = 41
     }
 
     @Volatile private var tunnel: ParcelFileDescriptor? = null
@@ -22,8 +28,13 @@ class FirewallVpnService : VpnService() {
     private val executor = Executors.newSingleThreadExecutor()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // A foreground notification helps Android keep the VPN service alive.
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification())
+
         if (intent?.action == ACTION_STOP) {
             stopTunnel()
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -31,6 +42,7 @@ class FirewallVpnService : VpnService() {
         val packages = intent?.getStringArrayListExtra(EXTRA_BLOCKED_PACKAGES)?.distinct().orEmpty()
         stopTunnel()
         if (packages.isEmpty()) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -55,12 +67,14 @@ class FirewallVpnService : VpnService() {
                 }
             }
             if (allowedCount == 0) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
             }
 
             val established = builder.establish()
             if (established == null) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -81,10 +95,40 @@ class FirewallVpnService : VpnService() {
             }
         } catch (_: Exception) {
             stopTunnel()
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
-        return START_NOT_STICKY
+        return START_STICKY
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "DurdurNet VPN",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "DurdurNet VPN çalışırken gösterilir"
+                setShowBadge(false)
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(): Notification {
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        return builder
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("DurdurNet çalışıyor")
+            .setContentText("Seçili uygulamalar için VPN engellemesi etkin.")
+            .setOngoing(true)
+            .build()
     }
 
     private fun stopTunnel() {
