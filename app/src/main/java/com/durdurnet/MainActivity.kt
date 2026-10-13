@@ -3,6 +3,7 @@ package com.durdurnet
 import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
+import android.net.Uri
 import android.os.Bundle
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -34,7 +35,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         })
         outer.addView(TextView(this).apply {
-            text = "Seçtiğin uygulamaların internetini VPN ile engelle"
+            text = "Seçili uygulamaların internetini kes. Kısıtla düğmesiyle Android ayarlarından izinlerini ve çalışmasını yönet."
             textSize = 14f; setTextColor(Color.LTGRAY); setPadding(0, 4, 0, 14)
         })
         status = TextView(this).apply {
@@ -111,6 +112,16 @@ class MainActivity : Activity() {
                 textSize = 13f; setTextColor(Color.WHITE)
             }
             row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(Button(this).apply {
+                text = "Kısıtla"
+                textSize = 11f
+                setPadding(5, 0, 5, 0)
+                contentDescription = "$appLabel Android uygulama ayarlarını aç"
+                setOnClickListener { openAppRestrictions(app.packageName) }
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
             val check = CheckBox(this).apply {
                 buttonTintList = android.content.res.ColorStateList.valueOf(Color.rgb(90, 200, 160))
                 isChecked = blocked.contains(app.packageName)
@@ -125,6 +136,23 @@ class MainActivity : Activity() {
             row.addView(check)
             list.addView(row)
             list.addView(ViewDivider(this))
+        }
+    }
+
+    /**
+     * Android does not let ordinary apps silently force-stop another app or revoke
+     * its permissions. Open the system-owned app details screen so the user can
+     * manage permissions, background use, mobile data and Force stop where available.
+     */
+    private fun openAppRestrictions(packageName: String) {
+        try {
+            val intent = Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:$packageName")
+            )
+            startActivity(intent)
+        } catch (_: Exception) {
+            status.text = "Bu uygulamanın Android ayarları açılamadı."
         }
     }
 
