@@ -111,10 +111,10 @@ class MainActivity : Activity() {
             }
             row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(Button(this).apply {
-                text = "Yönet"
+                text = "Kısıtla"
                 textSize = 11f
                 setPadding(5, 0, 5, 0)
-                contentDescription = "$appLabel izin ve arka plan ayarlarını yönet"
+                contentDescription = "$appLabel izin, internet ve arka plan kısıtlama ayarlarını aç"
                 setOnClickListener { showAppManagement(app.packageName, appLabel) }
             }, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -187,8 +187,8 @@ class MainActivity : Activity() {
             .setTitle("$appLabel · yönetim")
             .setMessage(
                 "Yaygın izinlerin mevcut durumu:\n$permissionLines\n\n" +
-                "İzinleri değiştirmek, pil/arka plan kullanımını ve mobil veri ayarlarını kontrol etmek için " +
-                "Android'in uygulama bilgileri ekranını aç. Mevcut seçenekler telefona ve uygulamaya göre değişebilir."
+                "İzinleri, ağ erişimini ve pil/arka plan kullanımını kontrol etmek için Android'in uygulama bilgileri ekranını aç. " +
+                "Devre dışı bırak seçeneği yalnızca Android bu uygulama için sunuyorsa görünür. Sistem uygulamalarının bazıları devre dışı bırakılamaz."
             )
             .setPositiveButton("Android ayarlarını aç") { _, _ ->
                 openAppRestrictions(targetPackage)
