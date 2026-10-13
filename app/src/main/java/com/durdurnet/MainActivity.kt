@@ -17,6 +17,8 @@ class MainActivity : Activity() {
     private val requestVpn = 100
     private lateinit var list: LinearLayout
     private lateinit var status: TextView
+    private lateinit var searchBox: EditText
+    private var installedApps: List<android.content.pm.ApplicationInfo> = emptyList()
     private val blocked = linkedSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,6 +82,19 @@ class MainActivity : Activity() {
             text = "Uygulamalar · engellenecekleri işaretle"
             textSize = 18f; setTextColor(Color.WHITE); setPadding(0, 14, 0, 8)
         })
+        searchBox = EditText(this).apply {
+            hint = "Uygulama adı veya paket adı ara"
+            setSingleLine(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.LTGRAY)
+            setPadding(12, 8, 12, 8)
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { renderApps() }
+                override fun afterTextChanged(s: android.text.Editable?) {}
+            })
+        }
+        outer.addView(searchBox)
         val scroll = ScrollView(this)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(list)
@@ -89,12 +104,29 @@ class MainActivity : Activity() {
     }
 
     private fun showApps() {
-        list.removeAllViews()
         val pm = packageManager
         val flags = PackageManager.GET_META_DATA or PackageManager.MATCH_DISABLED_COMPONENTS
-        val apps = pm.getInstalledApplications(flags)
+        installedApps = pm.getInstalledApplications(flags)
             .filter { it.packageName != packageName }
             .sortedBy { pm.getApplicationLabel(it).toString().lowercase() }
+        renderApps()
+    }
+
+    private fun renderApps() {
+        list.removeAllViews()
+        val pm = packageManager
+        val query = if (::searchBox.isInitialized) searchBox.text.toString().trim().lowercase() else ""
+        val apps = installedApps.filter { app ->
+            val label = try { pm.getApplicationLabel(app).toString().lowercase() } catch (_: Exception) { "" }
+            query.isEmpty() || label.contains(query) || app.packageName.lowercase().contains(query)
+        }
+        if (apps.isEmpty()) {
+            list.addView(TextView(this).apply {
+                text = "Aramayla eşleşen uygulama bulunamadı."
+                textSize = 14f; setTextColor(Color.LTGRAY); setPadding(8, 16, 8, 16)
+            })
+            return
+        }
         for (app in apps) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
