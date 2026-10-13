@@ -58,8 +58,16 @@ class MainActivity : Activity() {
         controls.addView(Button(this).apply {
             text = "Durdur"
             setOnClickListener {
+                // Tell the VPN service to close its tunnel before stopping the service.
+                val stopIntent = Intent(this@MainActivity, FirewallVpnService::class.java)
+                    .setAction(FirewallVpnService.ACTION_STOP)
+                try {
+                    startService(stopIntent)
+                } catch (_: Exception) {
+                    // Fallback if the service cannot receive the explicit stop command.
+                }
                 stopService(Intent(this@MainActivity, FirewallVpnService::class.java))
-                status.text = "VPN kapalı"
+                status.text = "VPN durdurma isteği gönderildi. Ayarlardan bağlantıyı kontrol et."
             }
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         outer.addView(controls)
@@ -82,7 +90,10 @@ class MainActivity : Activity() {
     private fun showApps() {
         list.removeAllViews()
         val pm = packageManager
-        val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        // Include disabled apps/components too; apps in another Android user/profile
+        // or truly hidden by the operating system may still be inaccessible.
+        val flags = PackageManager.GET_META_DATA or PackageManager.MATCH_DISABLED_COMPONENTS
+        val apps = pm.getInstalledApplications(flags)
             .filter { it.packageName != packageName }
             .sortedBy { pm.getApplicationLabel(it).toString().lowercase() }
         for (app in apps) {
@@ -90,8 +101,13 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 setPadding(8, 7, 8, 7)
             }
+            val appLabel = try {
+                pm.getApplicationLabel(app).toString()
+            } catch (_: Exception) {
+                app.packageName
+            }
             val name = TextView(this).apply {
-                text = pm.getApplicationLabel(app).toString() + "\n" + app.packageName
+                text = appLabel + "\n" + app.packageName
                 textSize = 13f; setTextColor(Color.WHITE)
             }
             row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
