@@ -39,6 +39,7 @@ class FirewallVpnService : VpnService() {
             val builder = Builder()
                 .setSession("DurdurNet")
                 .setMtu(1500)
+                .setBlocking(true)
                 .addAddress("10.10.0.2", 32)
                 .addRoute("0.0.0.0", 0)
                 .addAddress("fd10:10:10::2", 128)
