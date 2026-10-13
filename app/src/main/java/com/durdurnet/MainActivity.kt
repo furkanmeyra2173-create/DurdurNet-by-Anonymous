@@ -1,6 +1,7 @@
 package com.durdurnet
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.net.VpnService
 import android.net.Uri
@@ -35,7 +36,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         })
         outer.addView(TextView(this).apply {
-            text = "Seçili uygulamaların internetini kes. Kısıtla düğmesiyle Android ayarlarından izinlerini ve çalışmasını yönet."
+            text = "Seçili uygulamaların internetini kes. Yönet düğmesiyle izin durumlarını gör ve Android'in sunduğu kısıtlama ayarlarını aç."
             textSize = 14f; setTextColor(Color.LTGRAY); setPadding(0, 4, 0, 14)
         })
         status = TextView(this).apply {
@@ -59,13 +60,12 @@ class MainActivity : Activity() {
         controls.addView(Button(this).apply {
             text = "Durdur"
             setOnClickListener {
-                // Tell the VPN service to close its tunnel before stopping the service.
                 val stopIntent = Intent(this@MainActivity, FirewallVpnService::class.java)
                     .setAction(FirewallVpnService.ACTION_STOP)
                 try {
                     startService(stopIntent)
                 } catch (_: Exception) {
-                    // Fallback if the service cannot receive the explicit stop command.
+                    // Fall back to stopping the service below.
                 }
                 stopService(Intent(this@MainActivity, FirewallVpnService::class.java))
                 status.text = "VPN durdurma isteği gönderildi. Ayarlardan bağlantıyı kontrol et."
@@ -91,8 +91,6 @@ class MainActivity : Activity() {
     private fun showApps() {
         list.removeAllViews()
         val pm = packageManager
-        // Include disabled apps/components too; apps in another Android user/profile
-        // or truly hidden by the operating system may still be inaccessible.
         val flags = PackageManager.GET_META_DATA or PackageManager.MATCH_DISABLED_COMPONENTS
         val apps = pm.getInstalledApplications(flags)
             .filter { it.packageName != packageName }
@@ -113,11 +111,11 @@ class MainActivity : Activity() {
             }
             row.addView(name, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(Button(this).apply {
-                text = "Kısıtla"
+                text = "Yönet"
                 textSize = 11f
                 setPadding(5, 0, 5, 0)
-                contentDescription = "$appLabel Android uygulama ayarlarını aç"
-                setOnClickListener { openAppRestrictions(app.packageName) }
+                contentDescription = "$appLabel izin ve arka plan ayarlarını yönet"
+                setOnClickListener { showAppManagement(app.packageName, appLabel) }
             }, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -140,15 +138,70 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Android does not let ordinary apps silently force-stop another app or revoke
-     * its permissions. Open the system-owned app details screen so the user can
-     * manage permissions, background use, mobile data and Force stop where available.
+     * Shows current status for common sensitive permissions, then opens the
+     * Android-owned app details page for permission, battery and data controls.
+     * A normal app cannot silently revoke another app's permissions or force-stop it.
      */
-    private fun openAppRestrictions(packageName: String) {
+    private fun showAppManagement(targetPackage: String, appLabel: String) {
+        val permissionNames = mapOf(
+            "android.permission.CAMERA" to "Kamera",
+            "android.permission.RECORD_AUDIO" to "Mikrofon",
+            "android.permission.ACCESS_FINE_LOCATION" to "Kesin konum",
+            "android.permission.ACCESS_COARSE_LOCATION" to "Yaklaşık konum",
+            "android.permission.READ_CONTACTS" to "Kişiler",
+            "android.permission.WRITE_CONTACTS" to "Kişileri değiştirme",
+            "android.permission.READ_CALENDAR" to "Takvim",
+            "android.permission.WRITE_CALENDAR" to "Takvimi değiştirme",
+            "android.permission.READ_CALL_LOG" to "Arama kayıtları",
+            "android.permission.READ_SMS" to "SMS okuma",
+            "android.permission.SEND_SMS" to "SMS gönderme",
+            "android.permission.READ_PHONE_STATE" to "Telefon durumu",
+            "android.permission.READ_MEDIA_IMAGES" to "Fotoğraflar",
+            "android.permission.READ_MEDIA_VIDEO" to "Videolar",
+            "android.permission.READ_MEDIA_AUDIO" to "Ses dosyaları",
+            "android.permission.POST_NOTIFICATIONS" to "Bildirimler",
+            "android.permission.BODY_SENSORS" to "Vücut sensörleri"
+        )
+
+        val permissionLines = try {
+            val info = packageManager.getPackageInfo(targetPackage, PackageManager.GET_PERMISSIONS)
+            val requested = info.requestedPermissions.orEmpty()
+            val lines = requested
+                .filter { permissionNames.containsKey(it) }
+                .distinct()
+                .map { permission ->
+                    val granted = packageManager.checkPermission(permission, targetPackage) ==
+                        PackageManager.PERMISSION_GRANTED
+                    "${permissionNames[permission]}: ${if (granted) "izin verilmiş" else "izin verilmemiş"}"
+                }
+            if (lines.isEmpty()) {
+                "Bu uygulama için listelenebilen yaygın hassas izin bulunamadı."
+            } else {
+                lines.joinToString("\n")
+            }
+        } catch (_: Exception) {
+            "İzin durumu okunamadı. Android ayarlarından kontrol edebilirsin."
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("$appLabel · yönetim")
+            .setMessage(
+                "Yaygın izinlerin mevcut durumu:\n$permissionLines\n\n" +
+                "İzinleri değiştirmek, pil/arka plan kullanımını ve mobil veri ayarlarını kontrol etmek için " +
+                "Android'in uygulama bilgileri ekranını aç. Mevcut seçenekler telefona ve uygulamaya göre değişebilir."
+            )
+            .setPositiveButton("Android ayarlarını aç") { _, _ ->
+                openAppRestrictions(targetPackage)
+            }
+            .setNegativeButton("Kapat", null)
+            .show()
+    }
+
+    private fun openAppRestrictions(targetPackage: String) {
         try {
             val intent = Intent(
                 Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.parse("package:$packageName")
+                Uri.parse("package:$targetPackage")
             )
             startActivity(intent)
         } catch (_: Exception) {
